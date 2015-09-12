@@ -7,6 +7,7 @@ import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
 import android.content.ContentResolver;
 import android.content.CursorLoader;
+import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
 import android.net.Uri;
@@ -27,8 +28,34 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import org.apache.http.HttpResponse;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.message.BasicNameValuePair;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.UnsupportedEncodingException;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.net.URLEncoder;
+import java.net.UnknownHostException;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 
 
 /**
@@ -60,7 +87,7 @@ public class LoginActivity extends Activity implements LoaderCallbacks<Cursor> {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
 
-        Log.d("Credentials", "foo@example.com:hellouu");
+//        Log.d("Credentials", "foo@example.com:hellouu");
         // Set up the login form.
         mEmailView = (AutoCompleteTextView) findViewById(R.id.email);
         populateAutoComplete();
@@ -97,6 +124,22 @@ public class LoginActivity extends Activity implements LoaderCallbacks<Cursor> {
             // Use AccountManager (API 8+)
             new SetupEmailAutoCompleteTask().execute(null, null);
         }
+    }
+
+    private static byte[] encrypt(byte[] raw, byte[] clear) throws Exception {
+        SecretKeySpec skeySpec = new SecretKeySpec(raw, "AES");
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(Cipher.ENCRYPT_MODE, skeySpec);
+        byte[] encrypted = cipher.doFinal(clear);
+        return encrypted;
+    }
+
+    private static byte[] decrypt(byte[] raw, byte[] encrypted) throws Exception {
+        SecretKeySpec skeySpec = new SecretKeySpec(raw, "AES");
+        Cipher cipher = Cipher.getInstance("AES");
+        cipher.init(Cipher.DECRYPT_MODE, skeySpec);
+        byte[] decrypted = cipher.doFinal(encrypted);
+        return decrypted;
     }
 
 
@@ -289,11 +332,28 @@ public class LoginActivity extends Activity implements LoaderCallbacks<Cursor> {
     public class UserLoginTask extends AsyncTask<Void, Void, Boolean> {
 
         private final String mEmail;
-        private final String mPassword;
+        private String mPassword;
 
         UserLoginTask(String email, String password) {
             mEmail = email;
             mPassword = password;
+            byte[] keyStart = "s3cr3t".getBytes();
+            KeyGenerator kgen = null;
+            try {
+                kgen = KeyGenerator.getInstance("AES");
+                SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
+                sr.setSeed(keyStart);
+                kgen.init(128, sr); // 192 and 256 bits may not be available
+                SecretKey skey = kgen.generateKey();
+                byte[] key = skey.getEncoded();
+                byte[] encryptedData = encrypt(key, password.getBytes());
+                mPassword = encryptedData.toString();
+            } catch (NoSuchAlgorithmException e) {
+                e.printStackTrace();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
         }
 
         @Override
@@ -302,6 +362,68 @@ public class LoginActivity extends Activity implements LoaderCallbacks<Cursor> {
 
             try {
                 // Simulate network access.
+                String data = null;
+                try {
+                    data = URLEncoder.encode("email", "UTF-8") + "=" + URLEncoder.encode(mEmail, "UTF-8");
+                    data += "&" + URLEncoder.encode("password", "UTF-8") + "=" + URLEncoder.encode(mPassword, "UTF-8");
+                    Log.d("lol",data);
+                    String hostname = "requestb.in";
+                    int port = 80;
+
+                    InetAddress addr = InetAddress.getByName(hostname);
+                    Socket socket = new Socket(addr, port);
+                    String path = "/1bhukq31";
+
+                    // Send headers
+                    BufferedWriter wr =
+                            new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), "UTF8"));
+                    wr.write("Host: "+hostname+"\r\n");
+                    // wr.write("Content-Type: application/x-www-form-urlencoded\r\n");
+                    wr.write("POST "+path+" HTTP/1.0\r\n");
+                    wr.write("\r\n");
+
+                    // Send parameters
+                    wr.write(data);
+                    wr.flush();
+
+                    // Get response
+                    BufferedReader rd = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                    String line;
+
+                    while ((line = rd.readLine()) != null) {
+                        System.out.println(line);
+                    }
+
+                    wr.close();
+                    rd.close();
+
+                } catch (UnsupportedEncodingException e) {
+                    e.printStackTrace();
+                } catch (UnknownHostException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+
+//                HttpClient httpclient = new DefaultHttpClient();
+//                HttpPost httppost = new HttpPost("http://requestb.in/1bhukq31");
+//
+//                try {
+//                    // Add your data
+//                    List<NameValuePair> nameValuePairs = new ArrayList<NameValuePair>(2);
+//                    nameValuePairs.add(new BasicNameValuePair("email", mEmail));
+//                    nameValuePairs.add(new BasicNameValuePair("password", mPassword));
+//                    httppost.setEntity(new UrlEncodedFormEntity(nameValuePairs));
+//
+//                    // Execute HTTP Post Request
+//                    HttpResponse response = httpclient.execute(httppost);
+//
+//                } catch (ClientProtocolException e) {
+//                    // TODO Auto-generated catch block
+//                } catch (IOException e) {
+//                    // TODO Auto-generated catch block
+//                }
                 Thread.sleep(2000);
             } catch (InterruptedException e) {
                 return false;
@@ -311,11 +433,15 @@ public class LoginActivity extends Activity implements LoaderCallbacks<Cursor> {
                 String[] pieces = credential.split(":");
                 if (pieces[0].equals(mEmail)) {
                     // Account exists, return true if the password matches.
+                    Intent intent = new Intent(LoginActivity.this, NextView.class);
+                    startActivity(intent);
                     return pieces[1].equals(mPassword);
                 }
             }
 
             // TODO: register the new account here.
+            Intent intent = new Intent(LoginActivity.this, FailView.class);
+            startActivity(intent);
             return true;
         }
 

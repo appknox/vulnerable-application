@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">TestApplication</string>
+    <string name="title_activity_next_view">NextView</string>
+
+    <string name="hello_world">SUCCESS STRING!</string>
+    <string name="hello_world1">FAIL FAIL STRING!</string>
+    <string name="action_settings">Settings</string>
+    <string name="title_activity_fail_view">FailView</string>
 </resources>
